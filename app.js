@@ -3,7 +3,7 @@ const express = require("express");
 const app = express();
 const PORT = 3000;
 
-// Middleware that lets Express understand JSON request bodies
+// Middleware that lets Express understand JSON request bodie
 app.use(express.json());
 
 const tasks = [
