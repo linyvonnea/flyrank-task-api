@@ -1,7 +1,10 @@
 const express = require("express");
-
+const swaggerUi = require("swagger-ui-express");
+const swaggerDocument = require("./openapi.json");
 const app = express();
 const PORT = 3000;
+
+
 
 // Middleware that lets Express understand JSON request bodie
 app.use(express.json());
@@ -141,6 +144,7 @@ app.delete("/tasks/:id", (req, res) => {
 
 
 
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
