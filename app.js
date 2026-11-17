@@ -11,11 +11,7 @@ const PORT = 3000;
 // Middleware that lets Express understand JSON request bodie
 app.use(express.json());
 
-const tasks = [
-  { id: 1, title: "Buy groceries", done: false },
-  { id: 2, title: "Study Express", done: false },
-  { id: 3, title: "Finish assignment", done: true }
-];
+
 
 function toTask(row) {
   return {
@@ -89,68 +85,81 @@ app.post("/tasks", (req, res) => {
 
 // update
 app.put("/tasks/:id", (req, res) => {
-    const taskId = Number(req.params.id);
+  const taskId = Number(req.params.id);
 
-    const task = tasks.find((task) => task.id === taskId);
+  if (!Number.isSafeInteger(taskId)) {
+    return res.status(404).json({
+      error: `Task ${taskId} not found`
+    });
+  }
 
-    if (!task){
-        return res.status(404).json({
-            error: `Task ${taskId} not found`
-        });
-    }
+  const task = db
+    .prepare("SELECT * FROM tasks WHERE id = ?")
+    .get(taskId);
 
-    const { title, done} = req.body || {};
+  if (!task) {
+    return res.status(404).json({
+      error: `Task ${taskId} not found`
+    });
+  }
 
-    if (title === undefined && done === undefined){
-        return res.status(400).json({
-            error: "Provide a title or done value"
-        })
-    }
+  const { title, done } = req.body || {};
 
-    if (
-        title !== undefined && 
-        (typeof title !== "string" || title.trim() === "")
-    ) {
-        return res.status(400).json({
-                error: "Title must be non-empty string"
-            });
-        }
-        if (done !== undefined && typeof done !== "boolean"){
-            return res.status(400).json({
-                error: "Done must be true or false"
-            });
-        }
+  if (title === undefined && done === undefined) {
+    return res.status(400).json({
+      error: "Provide a title or done value"
+    });
+  }
 
-        if (title !== undefined){
-            task.title = title.trim();
-        }
+  if (
+    title !== undefined &&
+    (typeof title !== "string" || title.trim() === "")
+  ) {
+    return res.status(400).json({
+      error: "Title must be non-empty string"
+    });
+  }
 
-        if (done !== undefined) {
-            task.done = done;
-        }
+  if (done !== undefined && typeof done !== "boolean") {
+    return res.status(400).json({
+      error: "Done must be true or false"
+    });
+  }
 
-        res.status(200).json(task);
+  const nextTitle = title === undefined ? task.title : title.trim();
+  const nextDone = done === undefined ? task.done : Number(done);
 
+  db.prepare("UPDATE tasks SET title = ?, done = ? WHERE id = ?")
+    .run(nextTitle, nextDone, taskId);
+
+  const updatedTask = db
+    .prepare("SELECT * FROM tasks WHERE id = ?")
+    .get(taskId);
+
+  res.json(toTask(updatedTask));
 });
 
 app.delete("/tasks/:id", (req, res) => {
-    const taskId = Number(req.params.id);
+  const taskId = Number(req.params.id);
 
-    const taskIndex = tasks.findIndex(
-        (task) => task.id === taskId
-    );
+  if (!Number.isSafeInteger(taskId)) {
+    return res.status(404).json({
+      error: `Task ${taskId} not found`
+    });
+  }
 
-    if (taskIndex === -1){
-        return res.status(404).json({
-            error: `Task ${taskId} not found`
-        });
-    }
+  const result = db
+    .prepare("DELETE FROM tasks WHERE id = ?")
+    .run(taskId);
 
-    tasks.splice(taskIndex, 1);
+  if (result.changes === 0) {
+    return res.status(404).json({
+      error: `Task ${taskId} not found`
+    });
+  }
 
-    res.status(204).send();
-})
-
+  res.status(204).send();
+});
 
 
 
