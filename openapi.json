@@ -4,7 +4,7 @@
   "info": {
     "title": "Task API",
     "version": "1.0",
-    "description": "A simple in-memory CRUD API built with Node.js and Express."
+    "description": "A CRUD API built with Node.js, Express, and SQLite. Tasks persist across server restarts."
   },
   "servers": [
     {
