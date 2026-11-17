@@ -155,3 +155,141 @@ docker exec -it taskdb psql -U postgres -d tasks
 
 At this stage, the API still uses SQLite. Connecting it to PostgreSQL
 is the next stage.
+
+
+# Task API — PostgreSQL and Docker
+
+A task management API built with Node.js, Express, and PostgreSQL.
+Docker Compose starts the API and database together.
+A persistent volume keeps tasks across full-stack restarts.
+
+The project evolved from in-memory storage to SQLite, then PostgreSQL,
+while keeping the same task endpoints and response shapes.
+
+## Requirements
+
+Docker Desktop running, with Docker Compose available.
+
+## Setup and run
+
+```bash
+git clone https://github.com/linyvonnea/flyrank-task-api.git
+cd flyrank-task-api
+cp .env.example .env
+docker compose up
+```
+
+The example environment values work for a fresh local exercise.
+To choose your own password, update both password entries in .env.
+For this exercise, use letters, numbers, and underscores.
+
+API: http://localhost:3000
+
+Swagger UI: http://localhost:3000/docs
+
+After changing application code, rebuild with:
+
+```bash
+docker compose up --build
+```
+
+## Environment variables
+
+| Variable | Purpose |
+|---|---|
+| POSTGRES_USER | Database username |
+| POSTGRES_PASSWORD | Local database password |
+| POSTGRES_DB | Database name |
+| DATABASE_URL | Connection string for running Node locally |
+
+Compose builds the API connection string from the POSTGRES variables,
+using db as the database hostname.
+
+The local DATABASE_URL uses 127.0.0.1 because it connects from the Mac
+to the database's published port.
+
+.env is git-ignored. .env.example documents the required variables.
+
+## Endpoints
+
+| Method | Path | Behavior |
+|---|---|---|
+| GET | / | API information |
+| GET | /health | Server health |
+| GET | /tasks | List tasks |
+| GET | /tasks/:id | Get one task |
+| POST | /tasks | Create a task |
+| PUT | /tasks/:id | Update title, done, or both |
+| DELETE | /tasks/:id | Delete a task |
+
+Successful reads and updates return 200.
+Creating returns 201.
+Deleting returns 204 with an empty body.
+Invalid task bodies return 400.
+Unknown task IDs return 404.
+
+## Example request and actual response
+
+```bash
+curl -i http://localhost:3000/tasks/1
+```
+
+```text
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Content-Type: application/json; charset=utf-8
+Content-Length: 45
+ETag: W/"2d-Gv8HDdZD1sn+UqMseo56OTgQmek"
+Date: Tue, 17 Nov 2026 09:29:18 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"id":1,"title":"Buy groceries","done":false}
+```
+
+## Database implementation
+
+All database queries live in taskRepository.js.
+
+Queries use parameterized placeholders.
+PostgreSQL returns done as a JSON boolean through the pg driver.
+
+Startup creates the tasks table automatically and seeds three sample
+tasks when the table is empty. Repeated restarts do not duplicate them.
+
+## Persistence
+
+The db service stores its data in a named Docker volume.
+
+To verify persistence, create a task and run:
+
+```bash
+docker compose down
+docker compose up
+```
+
+Retrieve the same task by ID; it remains available.
+
+## Inspect the database
+
+```bash
+docker compose exec db psql -U postgres -d tasks
+```
+
+Inside psql:
+
+```sql
+SELECT * FROM tasks ORDER BY id;
+```
+
+![PostgreSQL table and rows](docs/postgres-docker.png)
+
+## Files
+
+| File | Responsibility |
+|---|---|
+| app.js | HTTP routes and validation |
+| taskRepository.js | PostgreSQL queries and initialization |
+| Dockerfile | API image |
+| compose.yaml | API, database, networking, and volume |
+| .env.example | Configuration template |
