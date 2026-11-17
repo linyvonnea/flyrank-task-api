@@ -35,26 +35,26 @@ app.get("/health", (req, res) => {
     status: "ok"
   });
 });
-app.get("/tasks", (req, res) => {
-  const rows = db
-    .prepare("SELECT * FROM tasks ORDER BY id")
-    .all();
 
-  res.json(rows.map(toTask));
+app.get("/tasks", async (req, res) => {
+  const tasks = await taskRepository.listTasks();
+  res.json(tasks);
 });
 
-app.get("/tasks/:id", (req, res) => {
+app.get("/tasks/:id", async (req, res) => {
   const taskId = Number(req.params.id);
 
-  if (!Number.isSafeInteger(taskId)) {
+  if (
+    !Number.isInteger(taskId) ||
+    taskId < 1 ||
+    taskId > 2147483647
+  ) {
     return res.status(404).json({
       error: `Task ${taskId} not found`
     });
   }
 
-  const task = db
-    .prepare("SELECT * FROM tasks WHERE id = ?")
-    .get(taskId);
+  const task = await taskRepository.getTaskById(taskId);
 
   if (!task) {
     return res.status(404).json({
@@ -62,8 +62,10 @@ app.get("/tasks/:id", (req, res) => {
     });
   }
 
-  res.json(toTask(task));
+  res.json(task);
 });
+
+
 app.post("/tasks", (req, res) => {
   const { title } = req.body || {};
 
