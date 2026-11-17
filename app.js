@@ -17,6 +17,14 @@ const tasks = [
   { id: 3, title: "Finish assignment", done: true }
 ];
 
+function toTask(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    done: row.done === 1
+  };
+}
+
 app.get("/", (req, res) => {
   res.json({
     name: "Task API",
@@ -30,15 +38,26 @@ app.get("/health", (req, res) => {
     status: "ok"
   });
 });
-
 app.get("/tasks", (req, res) => {
-  res.json(tasks);
+  const rows = db
+    .prepare("SELECT * FROM tasks ORDER BY id")
+    .all();
+
+  res.json(rows.map(toTask));
 });
 
 app.get("/tasks/:id", (req, res) => {
   const taskId = Number(req.params.id);
 
-  const task = tasks.find((task) => task.id === taskId);
+  if (!Number.isSafeInteger(taskId)) {
+    return res.status(404).json({
+      error: `Task ${taskId} not found`
+    });
+  }
+
+  const task = db
+    .prepare("SELECT * FROM tasks WHERE id = ?")
+    .get(taskId);
 
   if (!task) {
     return res.status(404).json({
@@ -46,7 +65,7 @@ app.get("/tasks/:id", (req, res) => {
     });
   }
 
-  res.json(task);
+  res.json(toTask(task));
 });
 
 app.post("/tasks", (req, res) => {
