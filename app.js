@@ -2,6 +2,7 @@ const express = require("express");
 const swaggerUi = require("swagger-ui-express");
 const swaggerDocument = require("./openapi.json");
 const db = require("./db");
+const taskRepository = require("./taskRepository");
 
 const app = express();
 const PORT = 3000;
@@ -170,6 +171,19 @@ app.delete("/tasks/:id", (req, res) => {
 
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+async function startServer() {
+  try {
+    await taskRepository.initializeDatabase();
+
+    console.log("PostgreSQL connected; tasks table ready");
+
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Database startup failed:", error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
