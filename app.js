@@ -1,25 +1,15 @@
 const express = require("express");
 const swaggerUi = require("swagger-ui-express");
 const swaggerDocument = require("./openapi.json");
-const db = require("./db");
 const taskRepository = require("./taskRepository");
 
 const app = express();
 const PORT = 3000;
 
-
-
-// Middleware that lets Express understand JSON request bodie
 app.use(express.json());
 
-
-
-function toTask(row) {
-  return {
-    id: row.id,
-    title: row.title,
-    done: row.done === 1
-  };
+function isValidTaskId(id) {
+  return Number.isInteger(id) && id > 0 && id <= 2147483647;
 }
 
 app.get("/", (req, res) => {
@@ -31,9 +21,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({
-    status: "ok"
-  });
+  res.json({ status: "ok" });
 });
 
 app.get("/tasks", async (req, res) => {
@@ -44,11 +32,7 @@ app.get("/tasks", async (req, res) => {
 app.get("/tasks/:id", async (req, res) => {
   const taskId = Number(req.params.id);
 
-  if (
-    !Number.isInteger(taskId) ||
-    taskId < 1 ||
-    taskId > 2147483647
-  ) {
+  if (!isValidTaskId(taskId)) {
     return res.status(404).json({
       error: `Task ${taskId} not found`
     });
@@ -65,8 +49,7 @@ app.get("/tasks/:id", async (req, res) => {
   res.json(task);
 });
 
-
-app.post("/tasks", (req, res) => {
+app.post("/tasks", async (req, res) => {
   const { title } = req.body || {};
 
   if (typeof title !== "string" || title.trim() === "") {
@@ -75,30 +58,20 @@ app.post("/tasks", (req, res) => {
     });
   }
 
-  const result = db
-    .prepare("INSERT INTO tasks (title, done) VALUES (?, ?)")
-    .run(title, 0);
-
-  const task = db
-    .prepare("SELECT * FROM tasks WHERE id = ?")
-    .get(result.lastInsertRowid);
-
-  res.status(201).json(toTask(task));
+  const task = await taskRepository.createTask(title);
+  res.status(201).json(task);
 });
 
-// update
-app.put("/tasks/:id", (req, res) => {
+app.put("/tasks/:id", async (req, res) => {
   const taskId = Number(req.params.id);
 
-  if (!Number.isSafeInteger(taskId)) {
+  if (!isValidTaskId(taskId)) {
     return res.status(404).json({
       error: `Task ${taskId} not found`
     });
   }
 
-  const task = db
-    .prepare("SELECT * FROM tasks WHERE id = ?")
-    .get(taskId);
+  const task = await taskRepository.getTaskById(taskId);
 
   if (!task) {
     return res.status(404).json({
@@ -130,32 +103,35 @@ app.put("/tasks/:id", (req, res) => {
   }
 
   const nextTitle = title === undefined ? task.title : title.trim();
-  const nextDone = done === undefined ? task.done : Number(done);
+  const nextDone = done === undefined ? task.done : done;
 
-  db.prepare("UPDATE tasks SET title = ?, done = ? WHERE id = ?")
-    .run(nextTitle, nextDone, taskId);
+  const updatedTask = await taskRepository.updateTask(
+    taskId,
+    nextTitle,
+    nextDone
+  );
 
-  const updatedTask = db
-    .prepare("SELECT * FROM tasks WHERE id = ?")
-    .get(taskId);
-
-  res.json(toTask(updatedTask));
-});
-
-app.delete("/tasks/:id", (req, res) => {
-  const taskId = Number(req.params.id);
-
-  if (!Number.isSafeInteger(taskId)) {
+  if (!updatedTask) {
     return res.status(404).json({
       error: `Task ${taskId} not found`
     });
   }
 
-  const result = db
-    .prepare("DELETE FROM tasks WHERE id = ?")
-    .run(taskId);
+  res.json(updatedTask);
+});
 
-  if (result.changes === 0) {
+app.delete("/tasks/:id", async (req, res) => {
+  const taskId = Number(req.params.id);
+
+  if (!isValidTaskId(taskId)) {
+    return res.status(404).json({
+      error: `Task ${taskId} not found`
+    });
+  }
+
+  const deleted = await taskRepository.deleteTask(taskId);
+
+  if (!deleted) {
     return res.status(404).json({
       error: `Task ${taskId} not found`
     });
@@ -164,14 +140,23 @@ app.delete("/tasks/:id", (req, res) => {
   res.status(204).send();
 });
 
-
-
-
-
-
-
-
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error);
+
+  if (error.type === "entity.parse.failed") {
+    return res.status(400).json({
+      error: "Request body must be valid JSON"
+    });
+  }
+
+  console.error("Request failed:", error.message);
+
+  res.status(500).json({
+    error: "Internal server error"
+  });
+});
 
 async function startServer() {
   try {
@@ -179,7 +164,7 @@ async function startServer() {
 
     console.log("PostgreSQL connected; tasks table ready");
 
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
   } catch (error) {
