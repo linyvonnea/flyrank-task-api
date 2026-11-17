@@ -122,3 +122,36 @@ Create a task, restart the server, and retrieve it by ID.
 The task remains available because it is stored in tasks.db.
 
 Updates and deletions also persist after restarting the server.
+
+
+
+## A3 progress: PostgreSQL in Docker
+
+PostgreSQL 17 runs in a Docker container named taskdb.
+Its data is stored in the named volume taskdata.
+
+Create .env from .env.example and set a local database password.
+With Docker Desktop running, start the database using:
+
+```bash
+docker run --name taskdb \
+  --env-file .env \
+  -p 127.0.0.1:5432:5432 \
+  -v taskdata:/var/lib/postgresql/data \
+  -d postgres:17
+```
+
+For subsequent starts of the existing container:
+
+```bash
+docker start taskdb
+```
+
+Open its SQL prompt:
+
+```bash
+docker exec -it taskdb psql -U postgres -d tasks
+```
+
+At this stage, the API still uses SQLite. Connecting it to PostgreSQL
+is the next stage.
