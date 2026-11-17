@@ -67,30 +67,24 @@ app.get("/tasks/:id", (req, res) => {
 
   res.json(toTask(task));
 });
-
 app.post("/tasks", (req, res) => {
-    const { title } = req.body || {};
+  const { title } = req.body || {};
 
-    if (typeof title !== "string" || title.trim() === "") {
+  if (typeof title !== "string" || title.trim() === "") {
     return res.status(400).json({
-        error: "Title must be a non-empty string"
+      error: "Title must be a non-empty string"
     });
-    }
+  }
 
-  const nextId =
-    tasks.length > 0
-      ? Math.max(...tasks.map((task) => task.id)) + 1
-      : 1;
+  const result = db
+    .prepare("INSERT INTO tasks (title, done) VALUES (?, ?)")
+    .run(title, 0);
 
-  const newTask = {
-    id: nextId,
-    title: title,
-    done: false
-  };
+  const task = db
+    .prepare("SELECT * FROM tasks WHERE id = ?")
+    .get(result.lastInsertRowid);
 
-  tasks.push(newTask);
-
-  res.status(201).json(newTask);
+  res.status(201).json(toTask(task));
 });
 
 // update
